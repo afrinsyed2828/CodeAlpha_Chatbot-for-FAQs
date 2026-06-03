@@ -5,18 +5,25 @@ import re
 import time
 from datetime import datetime
 
-# Try to import NLTK with better error handling
+# Check and import dependencies with error handling
 try:
     import nltk
     from nltk.stem import WordNetLemmatizer
     from nltk.corpus import stopwords
     NLTK_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     NLTK_AVAILABLE = False
-    st.error("NLTK is not installed. Please install it using: pip install nltk")
+    st.error(f"NLTK is not installed. Error: {e}")
+    st.info("Please run: pip install nltk")
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    SKLEARN_AVAILABLE = True
+except ImportError as e:
+    SKLEARN_AVAILABLE = False
+    st.error(f"scikit-learn is not installed. Error: {e}")
+    st.info("Please run: pip install scikit-learn")
 
 # Download required NLTK data only if NLTK is available
 if NLTK_AVAILABLE:
@@ -45,7 +52,6 @@ if NLTK_AVAILABLE:
     lemmatizer = WordNetLemmatizer()
     stop_words = set(stopwords.words('english'))
 else:
-    # Fallback if NLTK is not available
     lemmatizer = None
     stop_words = set()
 
@@ -257,6 +263,10 @@ def load_faq_data():
 @st.cache_resource
 def initialize_vectorizer(df):
     """Initialize TF-IDF vectorizer and transform FAQ questions"""
+    if not SKLEARN_AVAILABLE:
+        st.error("scikit-learn is required but not available")
+        return None, None, None
+    
     if df is None or df.empty:
         return None, None, None
     
@@ -274,6 +284,9 @@ def initialize_vectorizer(df):
 # Find best matching answer
 def find_best_answer(user_question, vectorizer, faq_vectors, df, threshold=0.3):
     """Find the best matching FAQ answer for the user's question using cosine similarity"""
+    if not SKLEARN_AVAILABLE:
+        return None, None, 0.0
+    
     # Preprocess user question
     processed_user_q = clean_text(user_question)
     
@@ -331,169 +344,13 @@ def display_message_with_animation(message, is_user, matched_q=None, score=None)
 def main():
     """Main function to run the Streamlit app"""
     
-    # Load custom CSS
-    load_css()
-    
-    # Header
-    st.markdown("""
-    <div class="header">
-        <h1>🤖 FAQ Chatbot Assistant</h1>
-        <p>Your AI-powered question answering system</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Sidebar information
-    with st.sidebar:
-        st.markdown("""
-        <div class="info-card">
-            <h3>📊 About</h3>
-            <p>This chatbot uses Natural Language Processing to answer your questions based on a FAQ database.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # Check if required libraries are available
+    if not SKLEARN_AVAILABLE:
+        st.error("""
+        ## ⚠️ Missing Required Library
         
-        st.markdown("""
-        <div class="info-card">
-            <h3>⚙️ How it works</h3>
-            <p>1. Text preprocessing<br>
-            2. TF-IDF vectorization<br>
-            3. Cosine similarity matching<br>
-            4. Returns best matching answer</p>
-        </div>
-        """, unsafe_allow_html=True)
+        The `scikit-learn` library is not installed. This is required for the chatbot to function.
         
-        st.markdown("""
-        <div class="info-card">
-            <h3>💡 Sample Questions</h3>
-            <p>• How do I reset my password?<br>
-            • What is two-factor authentication?<br>
-            • How to update my email address?<br>
-            • What are your business hours?<br>
-            • How to delete my account?</p>
-        </div>
-        """, unsafe_allow_html=True)
+        ### To fix this issue:
         
-        if st.button("🗑️ Clear Chat History"):
-            st.session_state.messages = []
-            st.rerun()
-    
-    # Load FAQ data
-    df = load_faq_data()
-    
-    if df is None:
-        # Create sample FAQ data for demonstration
-        sample_data = pd.DataFrame({
-            'question': [
-                'How do I reset my password?',
-                'What is two-factor authentication?',
-                'How to update my email address?',
-                'What are your business hours?',
-                'How to delete my account?',
-                'What is your return policy?',
-                'How can I contact support?',
-                'Do you offer discounts for students?'
-            ],
-            'answer': [
-                'To reset your password, click on "Forgot Password" link on the login page. You will receive an email with reset instructions.',
-                'Two-factor authentication (2FA) adds an extra layer of security. You will need to verify your identity using a second method like SMS or authenticator app.',
-                'To update your email address, go to Account Settings > Profile Information > Email Address. Click Edit and enter your new email.',
-                'Our business hours are Monday to Friday, 9:00 AM to 6:00 PM EST. We are closed on weekends and major holidays.',
-                'To delete your account, please contact our support team. They will guide you through the account deletion process.',
-                'We offer a 30-day return policy for all unused items in original packaging. Please contact customer service to initiate a return.',
-                'You can contact our support team via email at support@example.com or call us at 1-800-123-4567.',
-                'Yes, we offer a 15% student discount with valid student ID. Contact our support team for more details.'
-            ]
-        })
-        
-        st.info("💡 Using sample FAQ data. Create your own 'faq_data.csv' file to customize!")
-        df = sample_data
-    
-    # Initialize vectorizer and FAQ vectors
-    vectorizer, faq_vectors, df = initialize_vectorizer(df)
-    
-    if vectorizer is None:
-        st.error("Failed to initialize chatbot components.")
-        return
-    
-    # Initialize chat history in session state
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {
-                "role": "bot",
-                "content": "Hello! 👋 I'm your FAQ assistant. Ask me anything from our knowledge base!",
-                "timestamp": datetime.now()
-            }
-        ]
-    
-    # Display chat messages
-    chat_container = st.container()
-    with chat_container:
-        for message in st.session_state.messages:
-            if message["role"] == "user":
-                display_message_with_animation(message["content"], True)
-            else:
-                display_message_with_animation(
-                    message["content"], 
-                    False, 
-                    message.get("matched_q"), 
-                    message.get("score")
-                )
-    
-    # User input area
-    st.markdown("---")
-    col1, col2 = st.columns([5, 1])
-    
-    with col1:
-        user_input = st.text_input(
-            "Type your question here:",
-            key="user_input",
-            placeholder="Ask me anything about our services...",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        send_button = st.button("Send 📤", use_container_width=True)
-    
-    # Process user input
-    if send_button and user_input:
-        # Add user message to chat history
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_input,
-            "timestamp": datetime.now()
-        })
-        
-        # Find best answer
-        answer, matched_q, score = find_best_answer(user_input, vectorizer, faq_vectors, df)
-        
-        if answer:
-            bot_response = answer
-            bot_data = {
-                "role": "bot",
-                "content": bot_response,
-                "matched_q": matched_q,
-                "score": score,
-                "timestamp": datetime.now()
-            }
-        else:
-            bot_response = f"Sorry, I could not find a relevant answer. 😔\n\nPlease try rephrasing your question or contact support for assistance.\n\n(Confidence score: {score:.2%})"
-            bot_data = {
-                "role": "bot",
-                "content": bot_response,
-                "timestamp": datetime.now()
-            }
-        
-        # Add bot response to chat history
-        st.session_state.messages.append(bot_data)
-        
-        # Rerun to update the display
-        st.rerun()
-    
-    # Footer
-    st.markdown("""
-    <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.7);">
-        <small>Powered by NLP • TF-IDF • Cosine Similarity</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
+        1. Make sure you have a `requirements.txt` file with:
