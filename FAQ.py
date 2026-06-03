@@ -347,10 +347,10 @@ def main():
     # Check if required libraries are available
     if not SKLEARN_AVAILABLE:
         st.error("""
-        ## ⚠️ Missing Required Library
-        
-        The `scikit-learn` library is not installed. This is required for the chatbot to function.
-        
-        ### To fix this issue:
-        
-        1. Make sure you have a `requirements.txt` file with:
+## ⚠️ Missing Required Library
+
+The `scikit-learn` library is not installed. This is required for the chatbot to function.
+
+### To fix this issue:
+
+1. Make sure you have a `requirements.txt` file with:
