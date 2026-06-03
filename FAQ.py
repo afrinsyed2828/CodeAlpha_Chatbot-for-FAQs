@@ -1,8 +1,3 @@
-"""
-FAQ Chatbot Application with NLP and Modern UI
-Using Streamlit, NLTK, and Scikit-learn
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,16 +5,8 @@ import nltk
 import re
 import time
 from datetime import datetime
-@st.cache_resource
-def download_nltk_data():
-    try:
-        nltk.download('stopwords', quiet=True)
-        nltk.download('wordnet', quiet=True)
-        nltk.download('omw-1.4', quiet=True)
-    except:
-        pass
-from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -42,6 +29,7 @@ def download_nltk_data():
     except LookupError:
         nltk.download('wordnet', quiet=True)
 
+# Download NLTK data
 download_nltk_data()
 
 # Initialize lemmatizer and stopwords
@@ -212,25 +200,26 @@ def load_css():
 
 # Text preprocessing functions
 def clean_text(text):
+    """Clean and preprocess text"""
     text = str(text).lower()
-
+    
     # Remove special characters
     text = re.sub(r'[^a-zA-Z\s]', ' ', text)
-
+    
     # Simple tokenization
     tokens = text.split()
-
+    
     cleaned_tokens = []
-
     for token in tokens:
         if token not in stop_words and len(token) > 2:
             cleaned_tokens.append(lemmatizer.lemmatize(token))
-
+    
     return " ".join(cleaned_tokens)
 
 # Load FAQ data
 @st.cache_data
 def load_faq_data():
+    """Load FAQ data from CSV file"""
     try:
         df = pd.read_csv(
             "faq_data.csv",
@@ -238,22 +227,20 @@ def load_faq_data():
             engine="python",
             on_bad_lines="skip"
         )
-
+        
         required_columns = ["question", "answer"]
-
+        
         for col in required_columns:
             if col not in df.columns:
                 st.error(f"Missing column: {col}")
                 return None
-
+        
         df = df.dropna(subset=["question", "answer"])
-
         return df
-
+        
     except FileNotFoundError:
-        st.error("faq_data.csv not found.")
+        st.error("faq_data.csv not found. Please create the file with 'question' and 'answer' columns.")
         return None
-
     except Exception as e:
         st.error(f"Error loading FAQ data: {e}")
         return None
@@ -263,7 +250,7 @@ def load_faq_data():
 def initialize_vectorizer(df):
     """Initialize TF-IDF vectorizer and transform FAQ questions"""
     if df is None or df.empty:
-        return None, None
+        return None, None, None
     
     # Preprocess all FAQ questions
     df['processed_question'] = df['question'].apply(clean_text)
@@ -278,9 +265,7 @@ def initialize_vectorizer(df):
 
 # Find best matching answer
 def find_best_answer(user_question, vectorizer, faq_vectors, df, threshold=0.3):
-    """
-    Find the best matching FAQ answer for the user's question using cosine similarity
-    """
+    """Find the best matching FAQ answer for the user's question using cosine similarity"""
     # Preprocess user question
     processed_user_q = clean_text(user_question)
     
@@ -387,8 +372,28 @@ def main():
     df = load_faq_data()
     
     if df is None:
-        st.error("Failed to load FAQ data. Please check the data file.")
-        return
+        st.info("📝 Please create a 'faq_data.csv' file with 'question' and 'answer' columns to get started.")
+        
+        # Create sample FAQ data for demonstration
+        sample_data = pd.DataFrame({
+            'question': [
+                'How do I reset my password?',
+                'What is two-factor authentication?',
+                'How to update my email address?',
+                'What are your business hours?',
+                'How to delete my account?'
+            ],
+            'answer': [
+                'To reset your password, click on "Forgot Password" link on the login page. You will receive an email with reset instructions.',
+                'Two-factor authentication (2FA) adds an extra layer of security. You will need to verify your identity using a second method like SMS or authenticator app.',
+                'To update your email address, go to Account Settings > Profile Information > Email Address. Click Edit and enter your new email.',
+                'Our business hours are Monday to Friday, 9:00 AM to 6:00 PM EST. We are closed on weekends and major holidays.',
+                'To delete your account, please contact our support team. They will guide you through the account deletion process.'
+            ]
+        })
+        
+        st.info("💡 Showing sample FAQ data. Create your own faq_data.csv file to customize!")
+        df = sample_data
     
     # Initialize vectorizer and FAQ vectors
     vectorizer, faq_vectors, df = initialize_vectorizer(df)
@@ -458,7 +463,7 @@ def main():
                 "timestamp": datetime.now()
             }
         else:
-            bot_response = "Sorry, I could not find a relevant answer. 😔\n\nPlease try rephrasing your question or contact support for assistance."
+            bot_response = f"Sorry, I could not find a relevant answer. 😔\n\nPlease try rephrasing your question or contact support for assistance.\n\n(Confidence score: {score:.2%})"
             bot_data = {
                 "role": "bot",
                 "content": bot_response,
