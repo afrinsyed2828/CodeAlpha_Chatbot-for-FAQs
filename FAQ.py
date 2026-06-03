@@ -1,40 +1,53 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import nltk
 import re
 import time
 from datetime import datetime
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
+
+# Try to import NLTK with better error handling
+try:
+    import nltk
+    from nltk.stem import WordNetLemmatizer
+    from nltk.corpus import stopwords
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
+    st.error("NLTK is not installed. Please install it using: pip install nltk")
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Download required NLTK data
-@st.cache_resource
-def download_nltk_data():
-    """Download necessary NLTK datasets"""
-    try:
-        nltk.data.find('tokenizers/punkt')
-    except LookupError:
-        nltk.download('punkt', quiet=True)
+# Download required NLTK data only if NLTK is available
+if NLTK_AVAILABLE:
+    @st.cache_resource
+    def download_nltk_data():
+        """Download necessary NLTK datasets"""
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            nltk.download('punkt', quiet=True)
+        
+        try:
+            nltk.data.find('corpora/stopwords')
+        except LookupError:
+            nltk.download('stopwords', quiet=True)
+        
+        try:
+            nltk.data.find('corpora/wordnet')
+        except LookupError:
+            nltk.download('wordnet', quiet=True)
     
-    try:
-        nltk.data.find('corpora/stopwords')
-    except LookupError:
-        nltk.download('stopwords', quiet=True)
+    # Download NLTK data
+    download_nltk_data()
     
-    try:
-        nltk.data.find('corpora/wordnet')
-    except LookupError:
-        nltk.download('wordnet', quiet=True)
-
-# Download NLTK data
-download_nltk_data()
-
-# Initialize lemmatizer and stopwords
-lemmatizer = WordNetLemmatizer()
-stop_words = set(stopwords.words('english'))
+    # Initialize lemmatizer and stopwords
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
+else:
+    # Fallback if NLTK is not available
+    lemmatizer = None
+    stop_words = set()
 
 # Custom CSS for modern UI
 def load_css():
@@ -149,17 +162,6 @@ def load_css():
         font-size: 1.1em;
     }
     
-    /* Input area styling */
-    .input-area {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: rgba(255,255,255,0.95);
-        padding: 20px;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-    }
-    
     /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -201,6 +203,12 @@ def load_css():
 # Text preprocessing functions
 def clean_text(text):
     """Clean and preprocess text"""
+    if not NLTK_AVAILABLE:
+        # Simple cleaning without NLTK
+        text = str(text).lower()
+        text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+        return " ".join(text.split())
+    
     text = str(text).lower()
     
     # Remove special characters
@@ -239,7 +247,7 @@ def load_faq_data():
         return df
         
     except FileNotFoundError:
-        st.error("faq_data.csv not found. Please create the file with 'question' and 'answer' columns.")
+        st.warning("faq_data.csv not found. Using sample data.")
         return None
     except Exception as e:
         st.error(f"Error loading FAQ data: {e}")
@@ -346,7 +354,7 @@ def main():
         st.markdown("""
         <div class="info-card">
             <h3>⚙️ How it works</h3>
-            <p>1. Text preprocessing with NLTK<br>
+            <p>1. Text preprocessing<br>
             2. TF-IDF vectorization<br>
             3. Cosine similarity matching<br>
             4. Returns best matching answer</p>
@@ -372,8 +380,6 @@ def main():
     df = load_faq_data()
     
     if df is None:
-        st.info("📝 Please create a 'faq_data.csv' file with 'question' and 'answer' columns to get started.")
-        
         # Create sample FAQ data for demonstration
         sample_data = pd.DataFrame({
             'question': [
@@ -381,18 +387,24 @@ def main():
                 'What is two-factor authentication?',
                 'How to update my email address?',
                 'What are your business hours?',
-                'How to delete my account?'
+                'How to delete my account?',
+                'What is your return policy?',
+                'How can I contact support?',
+                'Do you offer discounts for students?'
             ],
             'answer': [
                 'To reset your password, click on "Forgot Password" link on the login page. You will receive an email with reset instructions.',
                 'Two-factor authentication (2FA) adds an extra layer of security. You will need to verify your identity using a second method like SMS or authenticator app.',
                 'To update your email address, go to Account Settings > Profile Information > Email Address. Click Edit and enter your new email.',
                 'Our business hours are Monday to Friday, 9:00 AM to 6:00 PM EST. We are closed on weekends and major holidays.',
-                'To delete your account, please contact our support team. They will guide you through the account deletion process.'
+                'To delete your account, please contact our support team. They will guide you through the account deletion process.',
+                'We offer a 30-day return policy for all unused items in original packaging. Please contact customer service to initiate a return.',
+                'You can contact our support team via email at support@example.com or call us at 1-800-123-4567.',
+                'Yes, we offer a 15% student discount with valid student ID. Contact our support team for more details.'
             ]
         })
         
-        st.info("💡 Showing sample FAQ data. Create your own faq_data.csv file to customize!")
+        st.info("💡 Using sample FAQ data. Create your own 'faq_data.csv' file to customize!")
         df = sample_data
     
     # Initialize vectorizer and FAQ vectors
